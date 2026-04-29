@@ -187,7 +187,7 @@ public class LoveApp {
                 .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, chatId))
                 // 开启日志，便于观察效果
                 .advisors(new MyLoggerAdvisor())
-                .toolCallbacks(allTools)
+
                 .call()
                 .chatResponse();
         String content = chatResponse.getResult().getOutput().getText();
