@@ -1,10 +1,13 @@
 package com.yupi.yuaiagent.app;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yupi.yuaiagent.advisor.MyLoggerAdvisor;
 import com.yupi.yuaiagent.advisor.ReReadingAdvisor;
-import com.yupi.yuaiagent.chatmemory.FileBasedChatMemory;
+import com.yupi.yuaiagent.chatmemory.HistoryAwareChatMemory;
+import com.yupi.yuaiagent.chatmemory.RedisChatMemory;
 import com.yupi.yuaiagent.rag.LoveAppRagCustomAdvisorFactory;
 import com.yupi.yuaiagent.rag.QueryRewriter;
+import com.yupi.yuaiagent.repository.ChatHistoryRepository;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -12,13 +15,15 @@ import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.memory.InMemoryChatMemoryRepository;
+import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 
@@ -36,17 +41,17 @@ public class LoveApp {
             "引导用户详述事情经过、对方反应及自身想法，以便给出专属解决方案。";
 
     /**
-     * 初始化 ChatClient
-     *
-     * @param dashscopeChatModel
+     * 初始化 ChatClient，配置 Redis 热缓存 + MySQL 长期存储的对话记忆
      */
-    public LoveApp(ChatModel dashscopeChatModel) {
-//        // 初始化基于文件的对话记忆
-//        String fileDir = System.getProperty("user.dir") + "/tmp/chat-memory";
-//        ChatMemory chatMemory = new FileBasedChatMemory(fileDir);
-        // 初始化基于内存的对话记忆
+    public LoveApp(ChatModel dashscopeChatModel,
+                   RedisTemplate<String, String> chatMemoryRedisTemplate,
+                   JdbcTemplate jdbcTemplate,
+                   ObjectMapper chatMemoryObjectMapper) {
+        ChatHistoryRepository historyRepo = new ChatHistoryRepository(jdbcTemplate, chatMemoryObjectMapper);
+        RedisChatMemory redisMemory = new RedisChatMemory(chatMemoryRedisTemplate, chatMemoryObjectMapper, historyRepo);
+        HistoryAwareChatMemory memory = new HistoryAwareChatMemory(redisMemory, historyRepo);
         MessageWindowChatMemory chatMemory = MessageWindowChatMemory.builder()
-                .chatMemoryRepository(new InMemoryChatMemoryRepository())
+                .chatMemoryRepository(memory)
                 .maxMessages(20)
                 .build();
         chatClient = ChatClient.builder(dashscopeChatModel)

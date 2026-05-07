@@ -1,11 +1,16 @@
 spring:
   application:
     name: yu-ai-agent
-# 临时注释掉，便于大家开发调试和部署（实际填写 PgVector 数据库信息）
-#  datasource:
-#    url: xxx
-#    username: root
-#    password: 123456
+  datasource:
+    url: jdbc:mysql://localhost:3306/yupi?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: 192.168.145.128
+      port: 6379
+      password: 123456
   ai:
     dashscope:
       # 需要替换为你自己的 key
