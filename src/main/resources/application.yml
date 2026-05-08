@@ -32,12 +32,21 @@ spring:
 #        stdio:
 #          servers-configuration: classpath:mcp-servers.json
 # 临时注释掉，便于大家开发调试和部署（实际需要启动 PgVector 数据库）
-#    vectorstore:
-#      pgvector:
-#        index-type: HNSW
-#        dimensions: 1536
-#        distance-type: COSINE_DISTANCE
-#        max-document-batch-size: 10000 # Optional: Maximum number of documents per batch
+    vectorstore:
+      pgvector:
+        index-type: HNSW
+        dimensions: 1536
+        distance-type: COSINE_DISTANCE
+        max-document-batch-size: 10000 # Optional: Maximum number of documents per batch
+# PGVector 专属数据源（与主数据源 MySQL 隔离）
+app:
+  pgvector:
+    datasource:
+      url: jdbc:postgresql://localhost:5432/yu_agent
+      username: postgres
+      password: 123456
+      driver-class-name: org.postgresql.Driver
+
 server:
   port: 8123
   servlet:
