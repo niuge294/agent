@@ -5,3 +5,4 @@ spring:
     active: sse
 server:
   port: 8127
+key: jZ9q3LAhn6EsUIVlW2Z6UPDbjdRongeCxwhBWbMkTuqnhCK0pT626zHq
