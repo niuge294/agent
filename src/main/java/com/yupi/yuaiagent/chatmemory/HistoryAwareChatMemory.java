@@ -3,16 +3,21 @@ package com.yupi.yuaiagent.chatmemory;
 import com.yupi.yuaiagent.repository.ChatHistoryRepository;
 import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.messages.Message;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.annotation.Primary;
+import org.springframework.stereotype.Component;
 
-import java.util.Collections;
 import java.util.List;
 
+@Component
+@Primary
 public class HistoryAwareChatMemory implements ChatMemoryRepository {
 
     private final ChatMemoryRepository delegate;
     private final ChatHistoryRepository historyRepo;
 
-    public HistoryAwareChatMemory(ChatMemoryRepository delegate, ChatHistoryRepository historyRepo) {
+    public HistoryAwareChatMemory(@Qualifier("redisChatMemory") ChatMemoryRepository delegate,
+                                  ChatHistoryRepository historyRepo) {
         this.delegate = delegate;
         this.historyRepo = historyRepo;
     }

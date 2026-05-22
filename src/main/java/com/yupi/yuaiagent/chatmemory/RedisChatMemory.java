@@ -2,18 +2,20 @@ package com.yupi.yuaiagent.chatmemory;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.yupi.yuaiagent.chatmemory.model.MessageRecord;
 import com.yupi.yuaiagent.repository.ChatHistoryRepository;
 import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.messages.Message;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+@Component
 public class RedisChatMemory implements ChatMemoryRepository {
 
     private static final String KEY_PREFIX = "chat:mem:";
@@ -23,12 +25,11 @@ public class RedisChatMemory implements ChatMemoryRepository {
     private final ObjectMapper objectMapper;
     private final ChatHistoryRepository historyRepo;
 
-    public RedisChatMemory(RedisTemplate<String, String> redisTemplate,
-                           ObjectMapper objectMapper,
+    public RedisChatMemory(@Qualifier("chatMemoryRedisTemplate") RedisTemplate<String, String> redisTemplate,
+                           @Qualifier("chatMemoryObjectMapper") ObjectMapper objectMapper,
                            ChatHistoryRepository historyRepo) {
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
-        this.objectMapper.registerModule(new JavaTimeModule());
         this.historyRepo = historyRepo;
     }
 

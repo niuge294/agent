@@ -3,10 +3,12 @@ package com.yupi.yuaiagent.repository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yupi.yuaiagent.chatmemory.model.MessageRecord;
+import com.yupi.yuaiagent.context.UserContext;
 import org.springframework.ai.chat.messages.Message;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Component;
 
-import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -14,12 +16,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+@Component
 public class ChatHistoryRepository {
 
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
 
-    public ChatHistoryRepository(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
+    public ChatHistoryRepository(JdbcTemplate jdbcTemplate,
+                                 @Qualifier("chatMemoryObjectMapper") ObjectMapper objectMapper) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
         ensureTableExists();
@@ -29,25 +33,27 @@ public class ChatHistoryRepository {
         jdbcTemplate.execute("""
                 CREATE TABLE IF NOT EXISTS chat_history (
                     id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    user_id BIGINT NOT NULL,
                     conversation_id VARCHAR(64) NOT NULL,
                     role VARCHAR(16) NOT NULL,
                     content TEXT,
                     metadata_json TEXT,
                     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    INDEX idx_conversation_id (conversation_id)
+                    INDEX idx_user_conv (user_id, conversation_id)
                 )
                 """);
     }
 
     public void append(String conversationId, List<Message> messages) {
-        String sql = "INSERT INTO chat_history (conversation_id, role, content, metadata_json, create_time) VALUES (?, ?, ?, ?, ?)";
+        Long userId = UserContext.getUserId();
+        String sql = "INSERT INTO chat_history (user_id, conversation_id, role, content, metadata_json, create_time) VALUES (?, ?, ?, ?, ?, ?)";
         List<Object[]> batchArgs = new ArrayList<>();
         LocalDateTime now = LocalDateTime.now();
         for (Message msg : messages) {
             MessageRecord record = MessageRecord.fromMessage(msg);
             String metadataJson = toJson(record.getMetadata());
             batchArgs.add(new Object[]{
-                    conversationId, record.getRole(), record.getContent(),
+                    userId, conversationId, record.getRole(), record.getContent(),
                     metadataJson, Timestamp.valueOf(now)
             });
         }
@@ -57,8 +63,9 @@ public class ChatHistoryRepository {
     }
 
     public List<Message> findLastN(String conversationId, int n) {
-        String sql = "SELECT role, content, metadata_json FROM chat_history WHERE conversation_id = ? ORDER BY id DESC LIMIT ?";
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, conversationId, n);
+        Long userId = UserContext.getUserId();
+        String sql = "SELECT role, content, metadata_json FROM chat_history WHERE user_id = ? AND conversation_id = ? ORDER BY id DESC LIMIT ?";
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, userId, conversationId, n);
         List<Message> messages = new ArrayList<>();
         for (int i = rows.size() - 1; i >= 0; i--) {
             messages.add(rowToMessage(rows.get(i)));
