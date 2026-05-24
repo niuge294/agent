@@ -24,7 +24,7 @@ spring:
         model: gemma3:1b
 # 临时注释掉，便于大家开发调试和部署（实际需要启动 MCP 服务）
 #    mcp:
-#      client:
+#     client:
 #        sse:
 #          connections:
 #            server1:
@@ -45,6 +45,11 @@ server:
   port: 8123
   servlet:
     context-path: /api
+# JWT
+jwt:
+  secret: yu-ai-agent-jwt-secret-key-2026
+  ttl: 604800000
+  token-name: token
 # MyBatis-Plus
 mybatis-plus:
   configuration:

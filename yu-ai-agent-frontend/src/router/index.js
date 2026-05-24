@@ -20,6 +20,14 @@ const routes = [
     }
   },
   {
+    path: '/login',
+    name: 'Login',
+    component: () => import('../views/Login.vue'),
+    meta: {
+      title: '登录 - 鱼皮AI超级智能体应用平台'
+    }
+  },
+  {
     path: '/super-agent',
     name: 'SuperAgent',
     component: () => import('../views/SuperAgent.vue'),
@@ -35,13 +43,18 @@ const router = createRouter({
   routes
 })
 
-// 全局导航守卫，设置文档标题
+// 全局路由守卫
 router.beforeEach((to, from, next) => {
-  // 设置页面标题
   if (to.meta.title) {
     document.title = to.meta.title
   }
-  next()
+  const publicPaths = ['/', '/login']
+  const user = localStorage.getItem('user')
+  if (!publicPaths.includes(to.path) && !user) {
+    next(`/login?redirect=${to.path}`)
+  } else {
+    next()
+  }
 })
 
 export default router 

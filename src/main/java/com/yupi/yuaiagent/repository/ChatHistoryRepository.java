@@ -3,7 +3,6 @@ package com.yupi.yuaiagent.repository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yupi.yuaiagent.chatmemory.model.MessageRecord;
-import com.yupi.yuaiagent.context.UserContext;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -45,7 +44,10 @@ public class ChatHistoryRepository {
     }
 
     public void append(String conversationId, List<Message> messages) {
-        Long userId = UserContext.getUserId();
+        ParsedId parsed = parseConversationId(conversationId);
+        if (parsed.userId == null) {
+            return;
+        }
         String sql = "INSERT INTO chat_history (user_id, conversation_id, role, content, metadata_json, create_time) VALUES (?, ?, ?, ?, ?, ?)";
         List<Object[]> batchArgs = new ArrayList<>();
         LocalDateTime now = LocalDateTime.now();
@@ -53,7 +55,7 @@ public class ChatHistoryRepository {
             MessageRecord record = MessageRecord.fromMessage(msg);
             String metadataJson = toJson(record.getMetadata());
             batchArgs.add(new Object[]{
-                    userId, conversationId, record.getRole(), record.getContent(),
+                    parsed.userId, parsed.realId, record.getRole(), record.getContent(),
                     metadataJson, Timestamp.valueOf(now)
             });
         }
@@ -63,15 +65,29 @@ public class ChatHistoryRepository {
     }
 
     public List<Message> findLastN(String conversationId, int n) {
-        Long userId = UserContext.getUserId();
+        ParsedId parsed = parseConversationId(conversationId);
+        if (parsed.userId == null) {
+            return Collections.emptyList();
+        }
         String sql = "SELECT role, content, metadata_json FROM chat_history WHERE user_id = ? AND conversation_id = ? ORDER BY id DESC LIMIT ?";
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, userId, conversationId, n);
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, parsed.userId, parsed.realId, n);
         List<Message> messages = new ArrayList<>();
         for (int i = rows.size() - 1; i >= 0; i--) {
             messages.add(rowToMessage(rows.get(i)));
         }
         return messages;
     }
+
+    private ParsedId parseConversationId(String conversationId) {
+        int split = conversationId.indexOf(':');
+        if (split > 0) {
+            return new ParsedId(Long.parseLong(conversationId.substring(0, split)),
+                    conversationId.substring(split + 1));
+        }
+        return new ParsedId(null, conversationId);
+    }
+
+    private record ParsedId(Long userId, String realId) {}
 
     private Message rowToMessage(Map<String, Object> row) {
         String role = (String) row.get("role");

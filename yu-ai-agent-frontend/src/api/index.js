@@ -1,15 +1,14 @@
 import axios from 'axios'
 
-// 根据环境变量设置 API 基础 URL
-const API_BASE_URL = process.env.NODE_ENV === 'production' 
- ? '/api' // 生产环境使用相对路径，适用于前后端部署在同一域名下
- : 'http://localhost:8123/api' // 开发环境指向本地后端服务
+const API_BASE_URL = '/api'
 
-// 创建axios实例
 const request = axios.create({
   baseURL: API_BASE_URL,
   timeout: 60000
 })
+
+// 获取当前用户信息（用于判断登录态）
+export const getMe = () => request.get('/user/me')
 
 // 封装SSE连接
 export const connectSSE = (url, params, onMessage, onError) => {
@@ -21,7 +20,7 @@ export const connectSSE = (url, params, onMessage, onError) => {
   const fullUrl = `${API_BASE_URL}${url}?${queryString}`
   
   // 创建EventSource
-  const eventSource = new EventSource(fullUrl)
+  const eventSource = new EventSource(fullUrl, { withCredentials: true })
   
   eventSource.onmessage = event => {
     let data = event.data
@@ -54,7 +53,14 @@ export const chatWithManus = (message) => {
   return connectSSE('/ai/manus/chat', { message })
 }
 
+// 用户登录注册
+export const login = (data) => request.post('/user/login', data)
+export const register = (data) => request.post('/user/register', data)
+
 export default {
   chatWithLoveApp,
-  chatWithManus
-} 
+  chatWithManus,
+  login,
+  register,
+  getMe
+}

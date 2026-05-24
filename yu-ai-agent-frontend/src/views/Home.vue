@@ -42,7 +42,7 @@
       <div class="circle circle-3"></div>
     </div>
     
-    <AppFooter />
+    <AppFooter theme="dark" />
   </div>
 </template>
 
