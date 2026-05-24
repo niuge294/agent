@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($env:USERPROFILE)",
+      "PowerShell(powershell -Command \"Get-ChildItem -Path 'D:\\\\0-Make Program\\\\daily work\\\\proj\\\\yu-ai-agent' -Depth 0 | Format-Table Name, Mode -AutoSize\")",
+      "PowerShell($env:CLAUDE_CONFIG_DIR = \"C:\\\\Users\\\\32695\\\\.claude\"; node \"C:\\\\Users\\\\32695\\\\.claude\\\\plugins\\\\claude-hud-0.0.12\\\\dist\\\\index.js\" 2>&1)",
+      "PowerShell(claude *)",
+      "PowerShell(Out-Null *)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\32695\\\\.claude\\\\plugins\" -Directory | ForEach-Object { $_.Name })",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\32695\\\\.claude\\\\plugins\\\\marketplaces\" -Directory | ForEach-Object { $_.Name })",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\32695\\\\.claude\\\\plugins\\\\cache\" -Directory | ForEach-Object { $_.Name })",
+      "PowerShell(ls \"$env:TEMP\\\\IService.class\" -ErrorAction SilentlyContinue; ls \"$env:TEMP\\\\ServiceImpl.class\" -ErrorAction SilentlyContinue)",
+      "PowerShell(Test-Path *)",
+      "PowerShell(javap -p \"$env:TEMP\\\\com\\\\baomidou\\\\mybatisplus\\\\extension\\\\service\\\\IService.class\")",
+      "PowerShell(javap -p \"$env:TEMP\\\\com\\\\baomidou\\\\mybatisplus\\\\extension\\\\service\\\\impl\\\\ServiceImpl.class\")",
+      "PowerShell(Add-Type -AssemblyName System.IO.Compression.FileSystem; $jars = @\\(\"$env:USERPROFILE\\\\.m2\\\\repository\\\\com\\\\baomidou\\\\mybatis-plus-extension\\\\3.5.10.1\\\\mybatis-plus-extension-3.5.10.1.jar\", \"$env:USERPROFILE\\\\.m2\\\\repository\\\\com\\\\baomidou\\\\mybatis-plus-core\\\\3.5.10.1\\\\mybatis-plus-core-3.5.10.1.jar\", \"$env:USERPROFILE\\\\.m2\\\\repository\\\\com\\\\baomidou\\\\mybatis-plus-spring\\\\3.5.10.1\\\\mybatis-plus-spring-3.5.10.1.jar\"\\); foreach \\($jar in $jars\\) { $zip = [System.IO.Compression.ZipFile]::OpenRead\\($jar\\); $entries = $zip.Entries | Where-Object { $_.FullName -match 'CrudRepository|AbstractRepository' } | ForEach-Object { $_.FullName }; if \\($entries\\) { Write-Host \\(\"In $jar :\"\\); $entries }; $zip.Dispose\\(\\) })",
+      "PowerShell(javap -p \"$env:TEMP\\\\com\\\\baomidou\\\\mybatisplus\\\\extension\\\\repository\\\\IRepository.class\")",
+      "PowerShell(javap -p \"$env:TEMP\\\\com\\\\baomidou\\\\mybatisplus\\\\extension\\\\repository\\\\CrudRepository.class\")",
+      "PowerShell(javap -p \"$env:TEMP\\\\com\\\\baomidou\\\\mybatisplus\\\\extension\\\\repository\\\\AbstractRepository.class\")",
+      "PowerShell($base = \"$env:USERPROFILE\\\\.m2\\\\repository\\\\com\\\\baomidou\\\\mybatis-plus-core\\\\3.5.10.1\\\\mybatis-plus-core-3.5.10.1.jar\"; Add-Type -AssemblyName System.IO.Compression.FileSystem; $zip = [System.IO.Compression.ZipFile]::OpenRead\\($base\\); $entry = $zip.Entries | Where-Object { $_.FullName -eq 'com/baomidou/mybatisplus/core/mapper/BaseMapper.class' }; $dest = \"$env:TEMP\\\\BaseMapper.class\"; [System.IO.Compression.ZipFileExtensions]::ExtractToFile\\($entry, $dest, $true\\); $zip.Dispose\\(\\); javap -p $dest)",
+      "PowerShell(Remove-Item *)"
+    ]
+  }
+}
