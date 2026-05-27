@@ -3,23 +3,38 @@
     <div class="header">
       <div class="back-button" @click="goBack">返回</div>
       <h1 class="title">AI恋爱大师</h1>
-      <div class="chat-id">会话ID: {{ chatId }}</div>
+      <div class="header-right"></div>
     </div>
-    
-    <div class="content-wrapper">
+
+    <div class="main-area">
+      <ConversationSidebar
+        :conversations="conversations"
+        :activeChatId="chatId"
+        @newChat="handleNewChat"
+        @select="handleSelect"
+        @delete="handleDelete"
+      />
       <div class="chat-area">
-        <ChatRoom 
-          :messages="messages" 
+        <ChatRoom
+          :messages="messages"
           :connection-status="connectionStatus"
           ai-type="love"
           @send-message="sendMessage"
         />
       </div>
     </div>
-    
+
     <div class="footer-container">
       <AppFooter />
     </div>
+
+    <ConfirmModal
+      :visible="deleteModalVisible"
+      title="删除会话"
+      message="删除后聊天记录也将清除，确定删除？"
+      @confirm="confirmDelete"
+      @cancel="deleteModalVisible = false"
+    />
   </div>
 </template>
 
@@ -28,10 +43,11 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useHead } from '@vueuse/head'
 import ChatRoom from '../components/ChatRoom.vue'
+import ConversationSidebar from '../components/ConversationSidebar.vue'
+import ConfirmModal from '../components/ConfirmModal.vue'
 import AppFooter from '../components/AppFooter.vue'
-import { chatWithLoveApp } from '../api'
+import { chatWithLoveApp, getConversations, deleteConversation, createConversation, getChatHistory } from '../api'
 
-// 设置页面标题和元数据
 useHead({
   title: 'AI恋爱大师 - 鱼皮AI超级智能体应用平台',
   meta: [
@@ -49,56 +65,39 @@ useHead({
 const router = useRouter()
 const messages = ref([])
 const chatId = ref('')
+const conversations = ref([])
 const connectionStatus = ref('disconnected')
 let eventSource = null
 
-// 生成随机会话ID
-const generateChatId = () => {
-  return 'love_' + Math.random().toString(36).substring(2, 10)
-}
+const generateChatId = () => 'love_' + Math.random().toString(36).substring(2, 10)
 
-// 添加消息到列表
 const addMessage = (content, isUser) => {
-  messages.value.push({
-    content,
-    isUser,
-    time: new Date().getTime()
-  })
+  messages.value.push({ content, isUser, time: new Date().getTime() })
 }
 
-// 发送消息
 const sendMessage = (message) => {
   addMessage(message, true)
-  
-  // 连接SSE
-  if (eventSource) {
-    eventSource.close()
-  }
-  
-  // 创建一个空的AI回复消息
+  if (eventSource) eventSource.close()
+
   const aiMessageIndex = messages.value.length
   addMessage('', false)
-  
+
   connectionStatus.value = 'connecting'
   eventSource = chatWithLoveApp(message, chatId.value)
-  
-  // 监听SSE消息
+
   eventSource.onmessage = (event) => {
     const data = event.data
     if (data && data !== '[DONE]') {
-      // 更新最新的AI消息内容，而不是创建新消息
       if (aiMessageIndex < messages.value.length) {
         messages.value[aiMessageIndex].content += data
       }
     }
-    
     if (data === '[DONE]') {
       connectionStatus.value = 'disconnected'
       eventSource.close()
+      loadConversations()
     }
   }
-  
-  // 监听SSE错误
   eventSource.onerror = (error) => {
     console.error('SSE Error:', error)
     connectionStatus.value = 'error'
@@ -106,25 +105,74 @@ const sendMessage = (message) => {
   }
 }
 
-// 返回主页
-const goBack = () => {
-  router.push('/')
+const loadConversations = async () => {
+  try {
+    const res = await getConversations()
+    conversations.value = res.data
+  } catch (e) { /* ignore */ }
 }
 
-// 页面加载时添加欢迎消息
-onMounted(() => {
-  // 生成聊天ID
+const handleNewChat = async () => {
+  // 如果已有一个没发消息的"新对话"，直接切过去，不重复创建
+  const empty = conversations.value.find(c => c.title === '新对话')
+  if (empty) {
+    chatId.value = empty.chatId
+    messages.value = []
+    addMessage('欢迎来到AI恋爱大师，请告诉我你的恋爱问题，我会尽力给予帮助和建议。', false)
+    return
+  }
   chatId.value = generateChatId()
-  
-  // 添加欢迎消息
+  messages.value = []
   addMessage('欢迎来到AI恋爱大师，请告诉我你的恋爱问题，我会尽力给予帮助和建议。', false)
+  await createConversation(chatId.value, '新对话')
+  loadConversations()
+}
+
+const handleSelect = async (chatIdVal) => {
+  chatId.value = chatIdVal
+  messages.value = []
+  try {
+    const res = await getChatHistory(chatIdVal)
+    if (res.data && res.data.length > 0) {
+      res.data.forEach(msg => {
+        messages.value.push({
+          content: msg.content,
+          isUser: msg.role === 'user',
+          time: new Date().getTime()
+        })
+      })
+    } else {
+      addMessage('欢迎来到AI恋爱大师，请告诉我你的恋爱问题，我会尽力给予帮助和建议。', false)
+    }
+  } catch (e) {
+    addMessage('欢迎来到AI恋爱大师，请告诉我你的恋爱问题，我会尽力给予帮助和建议。', false)
+  }
+}
+
+const deleteTargetId = ref(null)
+const deleteModalVisible = ref(false)
+
+const handleDelete = (id) => {
+  deleteTargetId.value = id
+  deleteModalVisible.value = true
+}
+
+const confirmDelete = async () => {
+  await deleteConversation(deleteTargetId.value)
+  deleteModalVisible.value = false
+  loadConversations()
+}
+
+const goBack = () => router.push('/')
+
+onMounted(() => {
+  chatId.value = generateChatId()
+  addMessage('欢迎来到AI恋爱大师，请告诉我你的恋爱问题，我会尽力给予帮助和建议。', false)
+  loadConversations()
 })
 
-// 组件销毁前关闭SSE连接
 onBeforeUnmount(() => {
-  if (eventSource) {
-    eventSource.close()
-  }
+  if (eventSource) eventSource.close()
 })
 </script>
 
@@ -156,11 +204,7 @@ onBeforeUnmount(() => {
   align-items: center;
   transition: opacity 0.2s;
 }
-
-.back-button:hover {
-  opacity: 0.8;
-}
-
+.back-button:hover { opacity: 0.8; }
 .back-button:before {
   content: '←';
   margin-right: 8px;
@@ -171,74 +215,29 @@ onBeforeUnmount(() => {
   font-weight: bold;
   margin: 0;
 }
+.header-right { width: 60px; }
 
-.chat-id {
-  font-size: 14px;
-  opacity: 0.8;
-}
-
-.content-wrapper {
+.main-area {
   display: flex;
-  flex-direction: column;
   flex: 1;
+  overflow: hidden;
 }
 
 .chat-area {
   flex: 1;
-  padding: 16px;
   overflow: hidden;
   position: relative;
-  /* 设置最小高度确保内容显示正常 */
-  min-height: calc(100vh - 56px - 180px); /* 100vh减去头部高度和页脚高度 */
-  margin-bottom: 16px; /* 为页脚留出空间 */
 }
 
-.footer-container {
-  margin-top: auto;
-}
+.footer-container { margin-top: auto; }
 
-/* 响应式样式 */
 @media (max-width: 768px) {
-  .header {
-    padding: 12px 16px;
-  }
-  
-  .title {
-    font-size: 18px;
-  }
-  
-  .chat-id {
-    font-size: 12px;
-  }
-  
-  .chat-area {
-    padding: 12px;
-    min-height: calc(100vh - 48px - 160px); /* 调整计算值 */
-    margin-bottom: 12px;
-  }
+  .header { padding: 12px 16px; }
+  .title { font-size: 18px; }
 }
 
 @media (max-width: 480px) {
-  .header {
-    padding: 10px 12px;
-  }
-  
-  .back-button {
-    font-size: 14px;
-  }
-  
-  .title {
-    font-size: 16px;
-  }
-  
-  .chat-id {
-    display: none;
-  }
-  
-  .chat-area {
-    padding: 8px;
-    min-height: calc(100vh - 42px - 150px); /* 再次调整计算值 */
-    margin-bottom: 8px;
-  }
+  .header { padding: 10px 12px; }
+  .title { font-size: 16px; }
 }
-</style> 
+</style>

@@ -55,6 +55,15 @@ public class UserController {
                 .build();
     }
 
+    @PostMapping("/logout")
+    public void logout(HttpServletResponse response) {
+        Cookie cookie = new Cookie(jwtConfig.getTokenName(), "");
+        cookie.setHttpOnly(true);
+        cookie.setPath("/");
+        cookie.setMaxAge(0);
+        response.addCookie(cookie);
+    }
+
     private void setTokenCookie(HttpServletResponse response, String token) {
         Cookie cookie = new Cookie(jwtConfig.getTokenName(), token);
         cookie.setHttpOnly(true);

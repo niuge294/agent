@@ -1,8 +1,11 @@
 package com.yupi.yuaiagent.app;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.yupi.yuaiagent.context.UserContext;
+import com.yupi.yuaiagent.model.entity.Conversation;
 import com.yupi.yuaiagent.rag.LoveAppRagCustomAdvisorFactory;
 import com.yupi.yuaiagent.rag.QueryRewriter;
+import com.yupi.yuaiagent.service.ConversationService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -35,12 +38,30 @@ public class LoveApp {
     @Resource
     private ToolCallbackProvider toolCallbackProvider;
 
+    @Resource
+    private ConversationService conversationService;
+
     /**
      * AI 基础对话：记忆 + RAG 知识库 + 工具 + MCP + 流式调用
      */
     public Flux<String> doChatByStream(String message, String chatId) {
         Long userId = UserContext.getUserId();
         String fullChatId = userId != null ? userId + ":" + chatId : chatId;
+        // 自动更新会话标题：
+        // 会话由前端点击"新对话"时创建（title="新对话"），
+        // 后端收到第一条消息时，把标题从"新对话"更新为消息前20字。
+        // 后续消息不会再触发（标题已不是"新对话"）。
+        if (userId != null) {
+            LambdaQueryWrapper<Conversation> wrapper = new LambdaQueryWrapper<Conversation>()
+                    .eq(Conversation::getUserId, userId)
+                    .eq(Conversation::getChatId, chatId);
+            Conversation conv = conversationService.getOne(wrapper);
+            if (conv != null && "新对话".equals(conv.getTitle())) {
+                String title = message.length() > 20 ? message.substring(0, 20) : message;
+                conv.setTitle(title);
+                conversationService.updateById(conv);
+            }
+        }
         String rewritten = queryRewriter.doQueryRewrite(message);
         return chatClient
                 .prompt()

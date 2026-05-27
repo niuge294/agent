@@ -54,13 +54,21 @@ export const chatWithManus = (message) => {
 }
 
 // 用户登录注册
+// 会话
+export const getConversations = () => request.get('/conversation/list')
+export const createConversation = (chatId, title) => request.post('/conversation/create', null, { params: { chatId, title } })
+export const deleteConversation = (id) => request.delete(`/conversation/${id}`)
+export const getChatHistory = (chatId) => request.get(`/conversation/${chatId}/history`)
+
 export const login = (data) => request.post('/user/login', data)
 export const register = (data) => request.post('/user/register', data)
+export const logout = () => request.post('/user/logout')
 
 export default {
   chatWithLoveApp,
   chatWithManus,
   login,
   register,
+  logout,
   getMe
 }

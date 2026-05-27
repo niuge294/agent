@@ -1,13 +1,25 @@
 <template>
   <div class="home-container">
     <div class="header">
+      <div class="user-bar">
+        <div v-if="user" class="user-dropdown" @click.stop="toggleDropdown">
+          <span class="user-name">{{ user.username }}</span>
+          <span class="arrow">▼</span>
+          <div v-if="showDropdown" class="dropdown-menu">
+            <div class="dropdown-item info">{{ maskPhone(user.phone) }}</div>
+            <div class="dropdown-item logout" @click.stop="handleLogout">退出登录</div>
+          </div>
+        </div>
+        <div v-else class="login-btn" @click="router.push('/login')">登录</div>
+      </div>
+
       <div class="glitch-wrapper">
         <h1 class="glitch-title">鱼皮AI超级智能体</h1>
       </div>
       <p class="subtitle">/ 探索AI的无限可能 /</p>
       <div class="cyber-line"></div>
     </div>
-    
+
     <div class="apps-container">
       <div class="app-card" @click="navigateTo('/love-master')">
         <div class="card-glow"></div>
@@ -21,7 +33,7 @@
           <span class="btn-icon">→</span>
         </div>
       </div>
-      
+
       <div class="app-card" @click="navigateTo('/super-agent')">
         <div class="card-glow"></div>
         <div class="app-icon robot-icon">🤖</div>
@@ -35,23 +47,24 @@
         </div>
       </div>
     </div>
-    
+
     <div class="cyber-circles">
       <div class="circle circle-1"></div>
       <div class="circle circle-2"></div>
       <div class="circle circle-3"></div>
     </div>
-    
+
     <AppFooter theme="dark" />
   </div>
 </template>
 
 <script setup>
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useHead } from '@vueuse/head'
+import { logout } from '../api/index.js'
 import AppFooter from '../components/AppFooter.vue'
 
-// 设置页面标题和元数据
 useHead({
   title: '鱼皮AI超级智能体应用平台 - 首页',
   meta: [
@@ -67,16 +80,32 @@ useHead({
 })
 
 const router = useRouter()
+const user = ref(JSON.parse(localStorage.getItem('user')))
+const showDropdown = ref(false)
 
-const navigateTo = (path) => {
-  router.push(path)
+const toggleDropdown = () => { showDropdown.value = !showDropdown.value }
+const maskPhone = (phone) => phone ? phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2') : ''
+const navigateTo = (path) => { router.push(path) }
+
+const handleLogout = async () => {
+  await logout()
+  localStorage.removeItem('user')
+  user.value = null
+  showDropdown.value = false
 }
+
+const closeDropdown = (e) => {
+  if (showDropdown.value && !e.target.closest('.user-dropdown')) {
+    showDropdown.value = false
+  }
+}
+onMounted(() => document.addEventListener('click', closeDropdown))
+onUnmounted(() => document.removeEventListener('click', closeDropdown))
 </script>
 
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&display=swap');
 
-/* 全局样式变量 */
 :root {
   --neon-blue: #00f0ff;
   --neon-purple: #9000ff;
@@ -91,13 +120,82 @@ const navigateTo = (path) => {
   flex-direction: column;
   min-height: 100vh;
   background-color: var(--cyber-dark);
-  background-image: 
+  background-image:
     linear-gradient(0deg, rgba(8, 17, 34, 0.9), rgba(5, 8, 20, 0.9)),
     url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="1" fill="%23111133" opacity="0.3"/><rect x="0" y="0" width="1" height="100" fill="%23111133" opacity="0.3"/></svg>');
   background-size: auto, 40px 40px;
   position: relative;
   overflow: hidden;
 }
+
+/* 用户栏 */
+.user-bar {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  z-index: 10;
+}
+.user-dropdown {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 6px 14px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  position: relative;
+  user-select: none;
+}
+.user-name {
+  color: rgba(255,255,255,0.75);
+  font-size: 14px;
+}
+.arrow {
+  color: rgba(255,255,255,0.4);
+  font-size: 10px;
+  transition: transform 0.2s;
+}
+.login-btn {
+  padding: 6px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(0,240,255,0.3);
+  color: #00f0ff;
+  font-size: 14px;
+  cursor: pointer;
+  background: transparent;
+  transition: border-color 0.3s;
+}
+.login-btn:hover { border-color: rgba(0,240,255,0.6); }
+
+/* 下拉菜单 */
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 160px;
+  background: rgba(17,23,41,0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  padding: 6px 0;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+.dropdown-item {
+  padding: 10px 16px;
+  font-size: 14px;
+  cursor: default;
+}
+.dropdown-item.info {
+  color: rgba(255,255,255,0.5);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.dropdown-item.logout {
+  color: rgba(255,255,255,0.7);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.dropdown-item.logout:hover { background: rgba(255,255,255,0.06); }
 
 /* 赛博朋克风格标题 */
 .header {
@@ -119,7 +217,7 @@ const navigateTo = (path) => {
   font-size: 3.2rem;
   font-weight: 700;
   color: var(--cyber-light);
-  text-shadow: 
+  text-shadow:
     0 0 5px rgba(0, 240, 255, 0.7),
     0 0 10px rgba(0, 240, 255, 0.5),
     0 0 20px rgba(0, 240, 255, 0.3);
@@ -183,13 +281,8 @@ const navigateTo = (path) => {
   box-shadow: 0 0 10px 2px var(--neon-blue);
 }
 
-.cyber-line::before {
-  left: 20%;
-}
-
-.cyber-line::after {
-  right: 20%;
-}
+.cyber-line::before { left: 20%; }
+.cyber-line::after { right: 20%; }
 
 .apps-container {
   display: flex;
@@ -209,7 +302,7 @@ const navigateTo = (path) => {
   background-color: rgba(17, 23, 41, 0.7);
   backdrop-filter: blur(10px);
   border-radius: 16px;
-  box-shadow: 
+  box-shadow:
     0 8px 32px rgba(0, 240, 255, 0.2),
     inset 0 0 0 1px rgba(255, 255, 255, 0.1);
   padding: 30px;
@@ -240,14 +333,12 @@ const navigateTo = (path) => {
 
 .app-card:hover {
   transform: translateY(-15px) scale(1.03);
-  box-shadow: 
+  box-shadow:
     0 15px 50px rgba(0, 240, 255, 0.3),
     inset 0 0 0 1px rgba(0, 240, 255, 0.5);
 }
 
-.app-card:hover .card-glow {
-  opacity: 1;
-}
+.app-card:hover .card-glow { opacity: 1; }
 
 .app-icon {
   font-size: 4rem;
@@ -324,23 +415,11 @@ const navigateTo = (path) => {
   transform: scale(1.05);
 }
 
-.app-button:hover::before {
-  left: 100%;
-}
+.app-button:hover::before { left: 100%; }
 
-.btn-text {
-  margin-right: 8px;
-  letter-spacing: 1px;
-}
-
-.btn-icon {
-  font-size: 1.2rem;
-  transition: transform 0.3s;
-}
-
-.app-button:hover .btn-icon {
-  transform: translateX(4px);
-}
+.btn-text { margin-right: 8px; letter-spacing: 1px; }
+.btn-icon { font-size: 1.2rem; transition: transform 0.3s; }
+.app-button:hover .btn-icon { transform: translateX(4px); }
 
 /* 背景圆圈动画 */
 .cyber-circles {
@@ -360,165 +439,70 @@ const navigateTo = (path) => {
 }
 
 .circle-1 {
-  width: 300px;
-  height: 300px;
-  top: -100px;
-  right: -100px;
+  width: 300px; height: 300px;
+  top: -100px; right: -100px;
   background: linear-gradient(135deg, var(--neon-blue), var(--neon-purple));
   animation: float 15s infinite alternate;
 }
 
 .circle-2 {
-  width: 500px;
-  height: 500px;
-  bottom: -200px;
-  left: -200px;
+  width: 500px; height: 500px;
+  bottom: -200px; left: -200px;
   background: linear-gradient(135deg, var(--neon-purple), var(--neon-pink));
   animation: float 20s infinite alternate-reverse;
 }
 
 .circle-3 {
-  width: 200px;
-  height: 200px;
-  top: 40%;
-  right: 15%;
+  width: 200px; height: 200px;
+  top: 40%; right: 15%;
   background: linear-gradient(135deg, var(--neon-pink), var(--neon-blue));
   animation: float 12s infinite alternate;
 }
 
-/* 动画效果 */
 @keyframes float {
-  0% {
-    transform: translate(0, 0) rotate(0deg);
-  }
-  100% {
-    transform: translate(50px, 50px) rotate(10deg);
-  }
+  0% { transform: translate(0, 0) rotate(0deg); }
+  100% { transform: translate(50px, 50px) rotate(10deg); }
 }
 
 @keyframes glitch {
-  0% {
-    text-shadow: 
-      0 0 5px rgba(0, 240, 255, 0.7),
-      0 0 10px rgba(0, 240, 255, 0.5);
-  }
-  50% {
-    text-shadow: 
-      0 0 5px rgba(0, 240, 255, 0.7),
-      0 0 10px rgba(0, 240, 255, 0.5),
-      0 0 20px rgba(0, 240, 255, 0.3);
-  }
-  100% {
-    text-shadow: 
-      0 0 5px rgba(0, 240, 255, 0.7),
-      0 0 10px rgba(0, 240, 255, 0.5);
-  }
+  0% { text-shadow: 0 0 5px rgba(0, 240, 255, 0.7), 0 0 10px rgba(0, 240, 255, 0.5); }
+  50% { text-shadow: 0 0 5px rgba(0, 240, 255, 0.7), 0 0 10px rgba(0, 240, 255, 0.5), 0 0 20px rgba(0, 240, 255, 0.3); }
+  100% { text-shadow: 0 0 5px rgba(0, 240, 255, 0.7), 0 0 10px rgba(0, 240, 255, 0.5); }
 }
 
 @keyframes glitch-anim {
-  0%, 100% {
-    transform: translate(0);
-  }
-  20% {
-    transform: translate(-5px, 5px);
-  }
-  40% {
-    transform: translate(-5px, -5px);
-  }
-  60% {
-    transform: translate(5px, 5px);
-  }
-  80% {
-    transform: translate(5px, -5px);
-  }
+  0%, 100% { transform: translate(0); }
+  20% { transform: translate(-5px, 5px); }
+  40% { transform: translate(-5px, -5px); }
+  60% { transform: translate(5px, 5px); }
+  80% { transform: translate(5px, -5px); }
 }
 
 @keyframes glitch-anim-2 {
-  0%, 100% {
-    transform: translate(0);
-  }
-  20% {
-    transform: translate(3px, -3px);
-  }
-  40% {
-    transform: translate(3px, 3px);
-  }
-  60% {
-    transform: translate(-3px, -3px);
-  }
-  80% {
-    transform: translate(-3px, 3px);
-  }
+  0%, 100% { transform: translate(0); }
+  20% { transform: translate(3px, -3px); }
+  40% { transform: translate(3px, 3px); }
+  60% { transform: translate(-3px, -3px); }
+  80% { transform: translate(-3px, 3px); }
 }
 
-/* 响应式设计 */
 @media (max-width: 768px) {
-  .glitch-title {
-    font-size: 2.5rem;
-  }
-  
-  .subtitle {
-    font-size: 1rem;
-  }
-  
-  .apps-container {
-    gap: 30px;
-    margin: 40px auto;
-  }
-  
-  .app-card {
-    width: 100%;
-    max-width: 420px;
-    padding: 25px;
-  }
-  
-  .app-icon {
-    font-size: 3.5rem;
-    width: 80px;
-    height: 80px;
-  }
+  .glitch-title { font-size: 2.5rem; }
+  .subtitle { font-size: 1rem; }
+  .apps-container { gap: 30px; margin: 40px auto; }
+  .app-card { width: 100%; max-width: 420px; padding: 25px; }
+  .app-icon { font-size: 3.5rem; width: 80px; height: 80px; }
 }
 
 @media (max-width: 480px) {
-  .header {
-    padding: 50px 15px 40px;
-  }
-  
-  .glitch-title {
-    font-size: 2rem;
-  }
-  
-  .subtitle {
-    font-size: 0.9rem;
-    letter-spacing: 2px;
-  }
-  
-  .apps-container {
-    margin: 30px auto;
-    padding: 0 15px;
-  }
-  
-  .app-card {
-    padding: 20px;
-  }
-  
-  .app-icon {
-    font-size: 3rem;
-    margin-bottom: 20px;
-    width: 70px;
-    height: 70px;
-  }
-  
-  .app-title {
-    font-size: 1.4rem;
-  }
-  
-  .app-desc {
-    font-size: 0.9rem;
-  }
-  
-  .circle-1, .circle-2, .circle-3 {
-    opacity: 0.1;
-  }
+  .header { padding: 50px 15px 40px; }
+  .glitch-title { font-size: 2rem; }
+  .subtitle { font-size: 0.9rem; letter-spacing: 2px; }
+  .apps-container { margin: 30px auto; padding: 0 15px; }
+  .app-card { padding: 20px; }
+  .app-icon { font-size: 3rem; margin-bottom: 20px; width: 70px; height: 70px; }
+  .app-title { font-size: 1.4rem; }
+  .app-desc { font-size: 0.9rem; }
+  .circle-1, .circle-2, .circle-3 { opacity: 0.1; }
 }
-</style> 
+</style>
