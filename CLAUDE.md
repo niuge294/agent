@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> 最后更新: 2026-05-14
+> 最后更新: 2026-05-28
 
 ## Project overview
 
@@ -14,6 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | LLM | Alibaba DashScope (qwen-plus) |
 | Embedding | DashScope text-embedding-v2 (1536维) |
 | 向量库 | PGVector (PostgreSQL) |
+| ORM | MyBatis-Plus 3.5.10.1 |
 | 缓存 | Redis |
 | 存储 | MySQL |
 | 前端 | Vue 3 + Vite |
@@ -24,13 +25,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 mvn compile
 mvn spring-boot:run                           # 后端, 端口 8123, context-path /api
-cd yu-ai-agent-frontend && npm install && npm run dev   # 前端
-cd yu-image-search-mcp-server && mvn spring-boot:run    # MCP 服务端, 端口 8127
+cd yu-ai-agent-frontend && npm install && npm run dev   # 前端, 端口 3000（Vite 代理 /api → 8123）
+cd yu-image-search-mcp-server && mvn spring-boot:run    # MCP 服务端, 端口 8127（可选）
 ```
 
 **Prerequisites:** Redis running, MySQL running (db `yupi`), PostgreSQL with `CREATE DATABASE yu_agent; CREATE EXTENSION vector;`, DashScope API key in `application.yml`.
 
+**MCP 配置需注释掉才能在不启动 MCP 服务端时运行后端**（`application.yml` 中 `spring.ai.mcp.*` 已默认注释）。
+
 ## Architecture
+
+### Auth (JWT httpOnly Cookie)
+
+```
+注册/登录 → JwtUtil.createToken() → Cookie(token=JWT; HttpOnly; Path=/)
+    → UserContextInterceptor.preHandle() 读 Cookie → UserContext.setUserId()
+      → ChatHistoryRepository 从 conversationId 解析 userId（非 ThreadLocal，避免异步线程丢失）
+```
+
+| 端点 | 方法 |
+|------|------|
+| `POST /api/user/register` | 注册 |
+| `POST /api/user/login` | 登录 |
+| `GET /api/user/me` | 当前用户信息 |
+| `POST /api/user/logout` | 退出（清 Cookie） |
+
+JWT 配置在 `application.yml`: `jwt.secret` / `jwt.ttl` / `jwt.token-name` → `JwtConfig`（`@ConfigurationProperties`）→ `JwtUtil`（静态方法）。
+
+Key files: `util/JwtUtil.java`, `config/JwtConfig.java`, `interceptor/UserContextInterceptor.java`, `controller/UserController.java`, `context/UserContext.java`.
 
 ### Chat memory (3-layer persistence)
 
@@ -41,17 +63,10 @@ MessageWindowChatMemory (窗口截断 20 条)
       → ChatHistoryRepository (MySQL chat_history, 只增不删)
 ```
 
-| 操作 | Redis | MySQL |
-|------|-------|-------|
-| `saveAll()` | `RPUSH` + `EXPIRE` 7天 | `HistoryAwareChatMemory` 自动 diff `INSERT` |
-| `findByConversationId()` | `LRANGE` 命中返回 | Redis miss → `findLastN(20)` 回灌 |
+- userId 编码进 conversationId（`4:love_xxx`），`ChatHistoryRepository.parseConversationId()` 拆分
+- `ChatHistoryRepository` 用 JdbcTemplate，不接入 MyBatis-Plus（稳定不变）
 
-注意事项：
-- `ChatMemoryRepository` 方法名与 `ChatMemory` 不同：`saveAll`/`findByConversationId`/`deleteByConversationId`
-- 全局 `ObjectMapper` 被 `chatMemoryObjectMapper` Bean 替代，已配 `FAIL_ON_UNKNOWN_PROPERTIES=false`
-- `MessageRecord.toMessage()` 对 `"tool"` 角色返回空 `ToolResponseMessage`，工具响应不持久化
-
-Key files: `chatmemory/RedisChatMemory.java`, `chatmemory/HistoryAwareChatMemory.java`, `chatmemory/model/MessageRecord.java`, `repository/ChatHistoryRepository.java`, `config/RedisChatMemoryConfig.java`.
+Key files: `chatmemory/RedisChatMemory.java`, `chatmemory/HistoryAwareChatMemory.java`, `repository/ChatHistoryRepository.java`, `config/RedisChatMemoryConfig.java`.
 
 ### Agent hierarchy
 
@@ -64,19 +79,24 @@ BaseAgent (AgentState 状态机, run/runStream 循环, 私有 messageList)
 
 Controller 每次请求 **new 新 YuManus 实例**——Agent 状态不跨请求保持。
 
-Key files: `agent/BaseAgent.java`, `agent/ReActAgent.java`, `agent/ToolCallAgent.java`, `agent/YuManus.java`, `agent/model/AgentState.java`.
+### Conversation (会话管理)
+
+| 端点 | 方法 | 描述 |
+|------|------|------|
+| `GET /api/conversation/list` | 列表 | 按更新时间倒序 |
+| `POST /api/conversation/create` | 创建 | title="新对话" |
+| `DELETE /api/conversation/{id}` | 删除 | 级联删除 chat_history |
+| `GET /api/conversation/{chatId}/history` | 历史消息 | 按时间升序 |
+
+- 前端点"新对话"立刻调 create → 侧边栏即时出现
+- 第一条消息发送后，后端把 title 从"新对话"更新为消息前 20 字
+- 点击历史会话加载 chat_history 消息
+- 删除会话弹 ConfirmModal 确认 → 一起删 conversation + chat_history
+
+Key files: `controller/ConversationController.java`, `model/entity/Conversation.java`, `model/entity/ChatHistory.java`, `service/ConversationService.java`, `service/ChatHistoryService.java`.
 
 ### RAG pipeline
 
-**ETL:**
-```
-3 个 *.md (classpath:document/)
-  → LoveAppDocumentLoader 按 --- 切分
-  → 标注 filename + status (单身/恋爱/已婚) 元数据
-  → PgVectorStore.add() → Embedding → PG
-```
-
-**检索:**
 ```
 用户问题 → QueryRewriter (LLM 改写) → Embedding
   → LoveAppRagCustomAdvisorFactory (topK=3, threshold=0.5)
@@ -86,89 +106,89 @@ Key files: `agent/BaseAgent.java`, `agent/ReActAgent.java`, `agent/ToolCallAgent
 ```
 
 - 纯向量语义检索（cosine），无关键词联合、无 rerank
-- `MyTokenTextSplitter` (200/100) 和 `MyKeywordEnricher` 已编写但**未接入**
-- `LoveAppVectorStoreConfig`（内存版）仍在创建 Bean 但 RAG 未使用，浪费 AI 调用
-- RAG 端点未暴露到 Controller；前端实际调用 `doChatByStream()`
+- `MyTokenTextSplitter` 和 `MyKeywordEnricher` 已编写但未接入
+- PGVector 每次启动 DELETE + 重刷，仅适合开发
 
-Key files: `rag/PgVectorVectorStoreConfig.java`, `rag/LoveAppRagCustomAdvisorFactory.java`, `rag/QueryRewriter.java`, `rag/LoveAppDocumentLoader.java`, `rag/LoveAppContextualQueryAugmenterFactory.java`, `rag/LoveAppRagCloudAdvisorConfig.java`.
+### LoveApp — 唯一活跃方法
 
-### Data sources
+`doChatByStream(message, chatId)` — 流式对话，合并了记忆 + RAG + 工具 + MCP：
 
-| 数据源 | 配置前缀 | 用途 |
-|--------|---------|------|
-| MySQL (主) | `spring.datasource.*` | 对话历史 |
-| PostgreSQL (次) | `app.pgvector.datasource.*` | PGVector 向量存储 |
+```java
+queryRewriter.rewrite(msg) → advisors(memory, RAG) → toolCallbacks(allTools, MCP) → .stream().content()
+```
 
-PG DataSource 在方法内自建，**不注册为 Spring Bean**，避免冲突。启动时 `SELECT COUNT(*)` + `DELETE` + `add()` 重刷。
+旧方法 `doChat` `doChatWithRag` `doChatWithTools` `doChatWithMcp` `doChatWithReport` 均已注释。
 
-### Tools (7 个, 注册于 `tools/ToolRegistration.java`)
+### Frontend (Vue 3 SPA)
 
-| 工具 | 类 | 功能 |
-|------|-----|------|
-| WebSearchTool | `WebSearchTool.java` | 百度搜索 (SearchAPI) |
-| WebScrapingTool | `WebScrapingTool.java` | 网页抓取 (JSoup) |
-| FileOperationTool | `FileOperationTool.java` | 文件读写 |
-| ResourceDownloadTool | `ResourceDownloadTool.java` | URL 资源下载 |
-| TerminalOperationTool | `TerminalOperationTool.java` | 命令执行 (cmd.exe /c) |
-| PDFGenerationTool | `PDFGenerationTool.java` | PDF 生成 (iText) |
-| TerminateTool | `TerminateTool.java` | Agent 终止标记 |
-
-文件默认路径：`{user.dir}/tmp/{file,download,pdf}/`
-
-### MCP integration
-
-- **Client** (主项目): `spring-ai-starter-mcp-client`, SSE 连接 `localhost:8127`, `LoveApp.doChatWithMcp()` 使用
-- **Server** (`yu-image-search-mcp-server/`): 独立 Spring Boot 3.4.5 应用, 暴露 `searchImage` 工具 (Pexels API), 支持 SSE/STDIO 传输
-
-### Controllers & API
-
-| 端点 | 方法 | 描述 |
+| 路由 | 视图 | 描述 |
 |------|------|------|
-| `/api/ai/love_app/chat/sync` | GET | 同步聊天 |
-| `/api/ai/love_app/chat/sse` | GET | SSE 流式聊天 |
-| `/api/ai/manus/chat` | GET | YuManus 流式执行 |
-| `/api/health` | GET | 健康检查 |
+| `/` | `Home.vue` | 入口页，右上用户下拉 |
+| `/login` | `Login.vue` | 登录注册页 |
+| `/love-master` | `LoveMaster.vue` | AI 恋爱大师，左侧会话栏 |
+| `/super-agent` | `SuperAgent.vue` | AI 超级智能体，左侧会话栏 |
 
-### Frontend (Vue 3 SPA, `yu-ai-agent-frontend/`)
+共享组件: `ChatRoom.vue` (聊天 UI)，`ConversationSidebar.vue` (会话列表)，`ConfirmModal.vue` (确认弹窗)，`AppFooter.vue` (页脚)。
 
-| 路由 | 视图 | SSE 策略 |
-|------|------|---------|
-| `/` | `Home.vue` | - (入口页) |
-| `/love-master` | `LoveMaster.vue` | 逐字追加到同一气泡 |
-| `/super-agent` | `SuperAgent.vue` | 按中文标点分句，800ms 间隔错开气泡 |
+路由守卫检查 `localStorage.user`，未登录自动跳 `/login`。Vite 代理 `/api → localhost:8123` 解决跨域。
 
-共享组件: `ChatRoom.vue` (聊天 UI), `AiAvatarFallback.vue` (头像), `AppFooter.vue` (页脚)。
-API 层: `src/api/index.js` — axios 实例 + `connectSSE()` 通用 SSE 连接器。
+### MyBatis-Plus 注意
 
-## Key classes
+`ServiceImpl.lambdaQuery()` 有 bug（3.5.10.1），必须用 `new LambdaQueryWrapper<>()` 替代。Service 层继承 `ServiceImpl<M, T>`，CRUD 方法自带。
+
+### Key classes
 
 | Class | Role |
 |-------|------|
-| `app/LoveApp.java` | 核心业务: chat / RAG / tools / MCP / 结构化报告 |
-| `controller/AiController.java` | REST + SSE 端点 |
-| `agent/YuManus.java` | 即用型自主 Agent |
-| `tools/ToolRegistration.java` | `ToolCallback[]` Bean |
-| `chatmemory/RedisChatMemory.java` | `ChatMemoryRepository` 的 Redis 实现 |
-| `rag/PgVectorVectorStoreConfig.java` | PGVector 配置 (启动时重建) |
+| `app/LoveApp.java` | 核心对话：记忆 + RAG + 工具 + MCP |
+| `controller/AiController.java` | 聊天 SSE 端点 |
+| `controller/UserController.java` | 登录注册 |
+| `controller/ConversationController.java` | 会话管理 |
+| `agent/YuManus.java` | 自主 Agent |
+| `util/JwtUtil.java` | JWT 静态工具 |
+| `config/JwtConfig.java` | JWT 配置 |
+| `config/ChatClientConfig.java` | ChatClient Bean 装配 |
+| `interceptor/UserContextInterceptor.java` | Cookie → UserContext |
+| `exception/GlobalExceptionHandler.java` | 全局异常处理 |
 
-## LoveApp methods
+## Development conventions
 
-| 方法 | 状态 | Controller 暴露 |
-|------|------|----------------|
-| `doChat()` | ✅ | `/love_app/chat/sync` |
-| `doChatByStream()` | ✅ | `/love_app/chat/sse` |
-| `doChatWithReport()` | ✅ 结构化输出 | 未暴露 |
-| `doChatWithRag()` | ✅ | 未暴露 |
-| `doChatWithTools()` | ❌ 注入 toolCallbacks 但未调用 | 未暴露 |
-| `doChatWithMcp()` | ✅ | 未暴露 |
+### 分层调用链
+
+Controller 不写业务逻辑，只做参数接收和调度。超过一行的逻辑必须下沉到 ServiceImpl。
+
+```
+Controller (@RestController)
+  → Service (interface extends IService<T>)
+    → ServiceImpl (@Service extends ServiceImpl<M, T> implements Service)
+      → Mapper (@Mapper extends BaseMapper<T>)
+```
+
+规则：
+- **Controller** — 只做两件事：接收参数、调用 Service。禁止出现 SQL、业务判断、拼接逻辑
+- **Service 接口** — 定义自定义方法签名（MyBatis-Plus 通用的 CRUD 由 IService 提供，不重复声明）
+- **ServiceImpl** — 所有业务逻辑、SQL 条件拼装、事务处理都在这里。MyBatis-Plus 3.5.10.1 的 `lambdaQuery()` 有 bug，统一使用 `new LambdaQueryWrapper<>()`
+- **Mapper** — 只继承 `BaseMapper<T>`，不加自定义方法。后续需要复杂 SQL 时写在 `resources/mapper/*.xml`
+
+### 方法注释
+
+每个新方法必须在开头写一行注释表明作用，中文，一行写完：
+
+```java
+/**
+ * 根据手机号查询用户
+ */
+public User findByPhone(String phone) { ... }
+
+/**
+ * 删除会话及其所有聊天记录
+ */
+public void deleteByIdWithHistory(Long id, Long userId) { ... }
+```
 
 ## Known issues
 
-- `doChatWithTools()` is broken — 注入了 `ToolCallback[]` 但未调 `.toolCallbacks()`。
 - PGVector 每次启动 DELETE + 重刷，仅适合开发。
-- `LoveAppVectorStoreConfig` 内存版向量库浪费一次 AI 关键字调用，可注释掉。
-- `MessageRecord.toMessage()` 的 `"tool"` 角色返回空 `ToolResponseMessage`。
-- MCP 服务端 Pexels API key 硬编码在 `application.yml`。
-- `ReReadingAdvisor` 在 LoveApp 构造函数中被注释掉。
+- `MessageRecord.toMessage()` 对 `"tool"` 角色返回空 `ToolResponseMessage`。
+- MP 3.5.10.1 `lambdaQuery()` 链式调用 bug，需用 `new LambdaQueryWrapper<>()`。
 - 未实现: 多查询扩展、rerank、关键词+向量联合检索。
-- `demo/` 包下示例类未用于生产。

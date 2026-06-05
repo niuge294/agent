@@ -1,8 +1,13 @@
 package com.yupi.yuaiagent.agent;
 
+import cn.hutool.core.collection.CollUtil;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
+
+import java.util.List;
 
 /**
  * ReAct (Reasoning and Acting) 模式的代理抽象类
@@ -38,6 +43,12 @@ public abstract class ReActAgent extends BaseAgent {
             // 先思考
             boolean shouldAct = think();
             if (!shouldAct) {
+                // 取出 think() 刚追加的最后一条 AssistantMessage 的文本，发给前端
+                List<Message> messages = getMessageList();
+                Message lastMsg = CollUtil.getLast(messages);
+                if (lastMsg instanceof AssistantMessage am) {
+                    return am.getText();
+                }
                 return "思考完成 - 无需行动";
             }
             // 再行动

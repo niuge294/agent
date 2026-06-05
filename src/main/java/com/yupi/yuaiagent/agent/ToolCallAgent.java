@@ -58,10 +58,12 @@ public class ToolCallAgent extends ReActAgent {
      */
     @Override
     public boolean think() {
-        // 1、校验提示词，拼接用户提示词
+        // 1、注入下一步规划提示词（先删除旧指令再追加，始终只保留一条）
         if (StrUtil.isNotBlank(getNextStepPrompt())) {
-            UserMessage userMessage = new UserMessage(getNextStepPrompt());
-            getMessageList().add(userMessage);
+            String nextPrompt = getNextStepPrompt();
+            getMessageList().removeIf(msg ->
+                    msg instanceof UserMessage um && nextPrompt.equals(um.getText()));
+            getMessageList().add(new UserMessage(nextPrompt));
         }
         // 2、调用 AI 大模型，获取工具调用结果
         List<Message> messageList = getMessageList();
@@ -69,7 +71,7 @@ public class ToolCallAgent extends ReActAgent {
         try {
             ChatResponse chatResponse = getChatClient().prompt(prompt)
                     .system(getSystemPrompt())
-                    .tools(availableTools)
+                    .toolCallbacks(availableTools)
                     .call()
                     .chatResponse();
             // 记录响应，用于等下 Act
@@ -115,6 +117,7 @@ public class ToolCallAgent extends ReActAgent {
         }
         // 调用工具
         Prompt prompt = new Prompt(getMessageList(), this.chatOptions);
+        //这里springai内部创建的conversationHistory在执行完这个方法后会把userMsg, nextStepPrompt（这两个属于prompt，spring做的是把prompt和后两个放进历史中）, assistantMsg, toolResponseMsg都放进去
         ToolExecutionResult toolExecutionResult = toolCallingManager.executeToolCalls(prompt, toolCallChatResponse);
         // 记录消息上下文，conversationHistory 已经包含了助手消息和工具调用返回的结果
         setMessageList(toolExecutionResult.conversationHistory());
@@ -126,10 +129,12 @@ public class ToolCallAgent extends ReActAgent {
             // 任务结束，更改状态
             setState(AgentState.FINISHED);
         }
-        String results = toolResponseMessage.getResponses().stream()
+        // 把 LLM 的思考文本拼在工具结果前面，让前端完整看到 AI 的回复
+        String thinkText = toolCallChatResponse.getResult().getOutput().getText();
+        String toolResults = toolResponseMessage.getResponses().stream()
                 .map(response -> "工具 " + response.name() + " 返回的结果：" + response.responseData())
                 .collect(Collectors.joining("\n"));
-        log.info(results);
-        return results;
+        log.info(toolResults);
+        return thinkText + "\n" + toolResults;
     }
 }
