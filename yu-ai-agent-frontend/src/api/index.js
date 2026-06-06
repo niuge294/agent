@@ -49,16 +49,20 @@ export const chatWithLoveApp = (message, chatId) => {
 }
 
 // AI超级智能体聊天
-export const chatWithManus = (message) => {
-  return connectSSE('/ai/manus/chat', { message })
+export const chatWithManus = (message, chatId) => {
+  return connectSSE('/ai/manus/chat', { message, chatId })
 }
 
 // 用户登录注册
-// 会话
+// 会话（LoveApp）
 export const getConversations = () => request.get('/conversation/list')
 export const createConversation = (chatId, title) => request.post('/conversation/create', null, { params: { chatId, title } })
 export const deleteConversation = (id) => request.delete(`/conversation/${id}`)
 export const getChatHistory = (chatId) => request.get(`/conversation/${chatId}/history`)
+
+// 会话（Manus）
+export const getManusConversations = () => request.get('/conversation/manus/list')
+export const getManusChatHistory = (chatId) => request.get(`/conversation/manus/${chatId}/history`)
 
 export const login = (data) => request.post('/user/login', data)
 export const register = (data) => request.post('/user/register', data)

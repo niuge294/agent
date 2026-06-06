@@ -72,4 +72,29 @@ public class ConversationController {
         Long userId = UserContext.getUserId();
         return chatHistoryService.getByChatId(userId, chatId);
     }
+
+    /**
+     * 获取当前用户的 Manus 会话列表（仅 agent_ 前缀的会话）
+     */
+    @GetMapping("/manus/list")
+    public List<Conversation> manusList() {
+        Long userId = UserContext.getUserId();
+        return conversationService.list(new LambdaQueryWrapper<Conversation>()
+                .eq(Conversation::getUserId, userId)
+                .likeRight(Conversation::getChatId, "agent_")
+                .orderByDesc(Conversation::getUpdateTime));
+    }
+
+    /**
+     * 查询 Manus 会话的聊天记录（仅返回 user 和 assistant，排除 tool 消息）
+     */
+    @GetMapping("/manus/{chatId}/history")
+    public List<ChatHistory> manusHistory(@PathVariable String chatId) {
+        Long userId = UserContext.getUserId();
+        return chatHistoryService.list(new LambdaQueryWrapper<ChatHistory>()
+                .eq(ChatHistory::getUserId, userId)
+                .eq(ChatHistory::getConversationId, chatId)
+                .in(ChatHistory::getRole, "user", "assistant")
+                .orderByAsc(ChatHistory::getId));
+    }
 }

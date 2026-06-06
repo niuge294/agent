@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
 /**
  * 抽象基础代理类，用于管理代理状态和执行流程。
@@ -43,6 +44,9 @@ public abstract class BaseAgent {
 
     // Memory 记忆（需要自主维护会话上下文）
     private List<Message> messageList = new ArrayList<>();
+
+    // Agent 结束时的回调，用于持久化等后置处理
+    private Consumer<List<Message>> onCompleteCallback;
 
     /**
      * 运行代理
@@ -154,7 +158,11 @@ public abstract class BaseAgent {
                     sseEmitter.completeWithError(ex);
                 }
             } finally {
-                // 3、清理资源
+                // 3、Agent 运行结束，回调持久化
+                if (this.onCompleteCallback != null) {
+                    this.onCompleteCallback.accept(this.messageList);
+                }
+                // 4、清理资源
                 this.cleanup();
             }
         });
@@ -182,6 +190,13 @@ public abstract class BaseAgent {
      * @return
      */
     public abstract String step();
+
+    /**
+     * 设置 Agent 结束时的回调（用于持久化等后置处理）
+     */
+    public void setOnComplete(Consumer<List<Message>> callback) {
+        this.onCompleteCallback = callback;
+    }
 
     /**
      * 清理资源

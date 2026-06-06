@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yupi.yuaiagent.chatmemory.model.MessageRecord;
 import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -56,6 +57,31 @@ public class ChatHistoryRepository {
             String metadataJson = toJson(record.getMetadata());
             batchArgs.add(new Object[]{
                     parsed.userId, parsed.realId, record.getRole(), record.getContent(),
+                    metadataJson, Timestamp.valueOf(now)
+            });
+        }
+        if (!batchArgs.isEmpty()) {
+            jdbcTemplate.batchUpdate(sql, batchArgs);
+        }
+    }
+
+    /**
+     * 持久化 Manus Agent 的完整对话消息
+     * 排除系统注入的 nextStepPrompt（伪装成 UserMessage 的规划指令）
+     */
+    public void appendManusMessages(Long userId, String chatId, List<Message> messages, String nextStepPrompt) {
+        String sql = "INSERT INTO chat_history (user_id, conversation_id, role, content, metadata_json, create_time) VALUES (?, ?, ?, ?, ?, ?)";
+        List<Object[]> batchArgs = new ArrayList<>();
+        LocalDateTime now = LocalDateTime.now();
+        for (Message msg : messages) {
+            // 跳过系统注入的 nextStepPrompt
+            if (nextStepPrompt != null && msg instanceof UserMessage && nextStepPrompt.equals(msg.getText())) {
+                continue;
+            }
+            MessageRecord record = MessageRecord.fromMessage(msg);
+            String metadataJson = toJson(record.getMetadata());
+            batchArgs.add(new Object[]{
+                    userId, chatId, record.getRole(), record.getContent(),
                     metadataJson, Timestamp.valueOf(now)
             });
         }

@@ -46,7 +46,7 @@ import ChatRoom from '../components/ChatRoom.vue'
 import ConversationSidebar from '../components/ConversationSidebar.vue'
 import ConfirmModal from '../components/ConfirmModal.vue'
 import AppFooter from '../components/AppFooter.vue'
-import { chatWithManus, getConversations, deleteConversation, createConversation, getChatHistory } from '../api'
+import { chatWithManus, getManusConversations, deleteConversation, createConversation, getManusChatHistory } from '../api'
 
 useHead({
   title: 'AI超级智能体 - 鱼皮AI超级智能体应用平台',
@@ -102,7 +102,7 @@ const sendMessage = (message) => {
     messageBuffer = []
   }
 
-  eventSource = chatWithManus(message)
+  eventSource = chatWithManus(message, chatId.value)
 
   eventSource.onmessage = (event) => {
     const data = event.data
@@ -134,7 +134,7 @@ const sendMessage = (message) => {
 
 const loadConversations = async () => {
   try {
-    const res = await getConversations()
+    const res = await getManusConversations()
     conversations.value = res.data
   } catch (e) { /* ignore */ }
 }
@@ -159,7 +159,7 @@ const handleSelect = async (chatIdVal) => {
   chatId.value = chatIdVal
   messages.value = []
   try {
-    const res = await getChatHistory(chatIdVal)
+    const res = await getManusChatHistory(chatIdVal)
     if (res.data && res.data.length > 0) {
       res.data.forEach(msg => {
         messages.value.push({
