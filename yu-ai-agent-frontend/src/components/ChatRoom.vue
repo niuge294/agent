@@ -12,7 +12,7 @@
           </div>
           <div class="message-bubble">
             <div class="message-content">
-              {{ msg.content }}
+              <span v-html="renderContent(msg.content)"></span>
               <span v-if="connectionStatus === 'connecting' && index === messages.length - 1" class="typing-indicator">▋</span>
             </div>
             <div class="message-time">{{ formatTime(msg.time) }}</div>
@@ -22,7 +22,7 @@
         <!-- 用户消息 -->
         <div v-else class="message user-message" :class="[msg.type]">
           <div class="message-bubble">
-            <div class="message-content">{{ msg.content }}</div>
+            <div class="message-content" v-html="renderContent(msg.content)"></div>
             <div class="message-time">{{ formatTime(msg.time) }}</div>
           </div>
           <div class="avatar user-avatar">
@@ -121,6 +121,29 @@ const handleFileSelect = async (event) => {
     uploading.value = false
     if (fileInput.value) fileInput.value.value = ''
   }
+}
+
+// 渲染内容（支持 ![](url) 图片和换行）
+const renderContent = (content) => {
+  if (!content) return ''
+  // 1. 先提取图片标签（markdown 和 HTML），替换为占位符
+  const imgTags = []
+  let html = content
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, src) => {
+      imgTags.push(`<img src="${src}" alt="${alt}" style="max-width:300px;border-radius:8px;margin:8px 0">`)
+      return `__IMG_${imgTags.length - 1}__`
+    })
+    .replace(/<img\s[^>]+>/gi, (match) => {
+      imgTags.push(match)
+      return `__IMG_${imgTags.length - 1}__`
+    })
+  // 2. 转义剩余 HTML，防止 XSS
+  html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  // 3. 还原图片标签
+  html = html.replace(/__IMG_(\d+)__/g, (_, i) => imgTags[parseInt(i)])
+  // 4. 换行
+  html = html.replace(/\n/g, '<br>')
+  return html
 }
 
 // 格式化时间

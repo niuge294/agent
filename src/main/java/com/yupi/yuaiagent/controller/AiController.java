@@ -68,12 +68,17 @@ public class AiController {
             conversationService.updateById(conv);
         }
 
-        // 2. 设置 Agent 结束时的持久化回调
+        // 2. 设置每步输出的实时写入回调
+        yuManus.onStepOutput((role, content) -> {
+            chatHistoryRepository.saveStepOutput(userId, chatId, role, content);
+        });
+
+        // 3. 设置 Agent 结束时的日志回调
         yuManus.setOnComplete(messages -> {
             chatHistoryRepository.appendManusMessages(userId, chatId, messages, yuManus.getNextStepPrompt());
         });
 
-        // 3. 启动 Agent
+        // 4. 启动 Agent
         return yuManus.runStream(message);
     }
 }

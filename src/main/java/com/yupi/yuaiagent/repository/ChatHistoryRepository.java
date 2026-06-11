@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yupi.yuaiagent.chatmemory.model.MessageRecord;
 import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.ToolResponseMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -15,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Component
 public class ChatHistoryRepository {
@@ -27,6 +29,28 @@ public class ChatHistoryRepository {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
         ensureTableExists();
+        ensureAgentMessageTableExists();
+    }
+
+    private void ensureAgentMessageTableExists() {
+        jdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS agent_message (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    user_id BIGINT NOT NULL,
+                    conversation_id VARCHAR(64) NOT NULL,
+                    role VARCHAR(16) NOT NULL,
+                    content TEXT,
+                    metadata_json TEXT,
+                    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_user_conv (user_id, conversation_id)
+                )
+                """);
+        // 存量表补充 metadata_json 列
+        try {
+            jdbcTemplate.execute("ALTER TABLE agent_message ADD COLUMN metadata_json TEXT NULL");
+        } catch (Exception ignored) {
+            // 列已存在，忽略
+        }
     }
 
     private void ensureTableExists() {
@@ -66,11 +90,11 @@ public class ChatHistoryRepository {
     }
 
     /**
-     * 持久化 Manus Agent 的完整对话消息
+     * 持久化 Manus Agent 的完整对话消息到 agent_message 表即生成日志表
      * 排除系统注入的 nextStepPrompt（伪装成 UserMessage 的规划指令）
      */
     public void appendManusMessages(Long userId, String chatId, List<Message> messages, String nextStepPrompt) {
-        String sql = "INSERT INTO chat_history (user_id, conversation_id, role, content, metadata_json, create_time) VALUES (?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO agent_message (user_id, conversation_id, role, content, metadata_json, create_time) VALUES (?, ?, ?, ?, ?, ?)";
         List<Object[]> batchArgs = new ArrayList<>();
         LocalDateTime now = LocalDateTime.now();
         for (Message msg : messages) {
@@ -78,11 +102,20 @@ public class ChatHistoryRepository {
             if (nextStepPrompt != null && msg instanceof UserMessage && nextStepPrompt.equals(msg.getText())) {
                 continue;
             }
-            MessageRecord record = MessageRecord.fromMessage(msg);
-            String metadataJson = toJson(record.getMetadata());
+            // ToolResponseMessage 需要从 responseData 提取内容
+            String role = msg.getMessageType().name().toLowerCase();
+            String content;
+            if (msg instanceof ToolResponseMessage trm) {
+                content = trm.getResponses().stream()
+                        .map(r -> r.responseData())
+                        .collect(Collectors.joining("\n"));
+            } else {
+                content = msg.getText();
+            }
+            String metadataJson = toJson(msg.getMetadata());
             batchArgs.add(new Object[]{
-                    userId, chatId, record.getRole(), record.getContent(),
-                    metadataJson, Timestamp.valueOf(now)
+                    userId, chatId, role, content, metadataJson,
+                    Timestamp.valueOf(now)
             });
         }
         if (!batchArgs.isEmpty()) {
@@ -102,6 +135,15 @@ public class ChatHistoryRepository {
             messages.add(rowToMessage(rows.get(i)));
         }
         return messages;
+    }
+
+    /**
+     * 实时写入 Agent 每一步的前端可见内容
+     */
+    public void saveStepOutput(Long userId, String chatId, String role, String content) {
+        jdbcTemplate.update(
+                "INSERT INTO chat_history (user_id, conversation_id, role, content, create_time) VALUES (?, ?, ?, ?, NOW())",
+                userId, chatId, role, content);
     }
 
     private ParsedId parseConversationId(String conversationId) {

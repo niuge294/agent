@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
@@ -51,6 +52,9 @@ public abstract class BaseAgent {
 
     // Agent 结束时的回调，用于持久化等后置处理
     private Consumer<List<Message>> onCompleteCallback;
+
+    // 每步输出的回调，用于实时写入数据库
+    private BiConsumer<String, String> stepOutputCallback;
 
     /**
      * 运行代理
@@ -135,6 +139,10 @@ public abstract class BaseAgent {
             this.state = AgentState.RUNNING;
             // 记录消息上下文
             messageList.add(new UserMessage(userPrompt));
+            // 实时写入用户消息
+            if (stepOutputCallback != null) {
+                stepOutputCallback.accept("user", userPrompt);
+            }
             // 保存结果列表
             List<String> results = new ArrayList<>();
             try {
@@ -149,12 +157,19 @@ public abstract class BaseAgent {
                     results.add(result);
                     // 输出当前每一步的结果到 SSE
                     sseEmitter.send(result);
+                    // 实时写入 step 结果
+                    if (stepOutputCallback != null) {
+                        stepOutputCallback.accept("assistant", result);
+                    }
                 }
                 // 检查是否超出步骤限制
                 if (currentStep >= maxSteps) {
                     state = AgentState.FINISHED;
                     results.add("Terminated: Reached max steps (" + maxSteps + ")");
                     sseEmitter.send("执行结束：达到最大步骤（" + maxSteps + "）");
+                    if (stepOutputCallback != null) {
+                        stepOutputCallback.accept("assistant", "执行结束：达到最大步骤（" + maxSteps + "）");
+                    }
                 }
                 // 正常完成
                 sseEmitter.complete();
@@ -207,6 +222,13 @@ public abstract class BaseAgent {
      */
     public void setOnComplete(Consumer<List<Message>> callback) {
         this.onCompleteCallback = callback;
+    }
+
+    /**
+     * 设置每步输出的回调（用于实时写入数据库）
+     */
+    public void onStepOutput(BiConsumer<String, String> callback) {
+        this.stepOutputCallback = callback;
     }
 
     /**
