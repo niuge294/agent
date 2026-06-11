@@ -64,6 +64,15 @@ export const getChatHistory = (chatId) => request.get(`/conversation/${chatId}/h
 export const getManusConversations = () => request.get('/conversation/manus/list')
 export const getManusChatHistory = (chatId) => request.get(`/conversation/manus/${chatId}/history`)
 
+// 文件上传
+export const uploadFile = (file) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request.post('/file/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+}
+
 export const login = (data) => request.post('/user/login', data)
 export const register = (data) => request.post('/user/register', data)
 export const logout = () => request.post('/user/logout')

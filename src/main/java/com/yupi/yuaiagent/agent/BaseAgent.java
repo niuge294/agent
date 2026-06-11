@@ -2,6 +2,7 @@ package com.yupi.yuaiagent.agent;
 
 import cn.hutool.core.util.StrUtil;
 import com.yupi.yuaiagent.agent.model.AgentState;
+import com.yupi.yuaiagent.context.UserContext;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -41,6 +42,9 @@ public abstract class BaseAgent {
 
     // LLM 大模型
     private ChatClient chatClient;
+
+    // 当前用户 ID
+    private Long userId;
 
     // Memory 记忆（需要自主维护会话上下文）
     private List<Message> messageList = new ArrayList<>();
@@ -104,8 +108,14 @@ public abstract class BaseAgent {
     public SseEmitter runStream(String userPrompt) {
         // 创建一个超时时间较长的 SseEmitter
         SseEmitter sseEmitter = new SseEmitter(300000L); // 5 分钟超时
+        // 捕获 userId 用于传递到异步线程
+        Long capturedUserId = this.userId;
         // 使用线程异步处理，避免阻塞主线程
         CompletableFuture.runAsync(() -> {
+            // 传递 userId 到异步线程，让工具能获取当前用户
+            if (capturedUserId != null) {
+                UserContext.setUserId(capturedUserId);
+            }
             // 1、基础校验
             try {
                 if (this.state != AgentState.IDLE) {
@@ -164,6 +174,7 @@ public abstract class BaseAgent {
                 }
                 // 4、清理资源
                 this.cleanup();
+                UserContext.clear();
             }
         });
 

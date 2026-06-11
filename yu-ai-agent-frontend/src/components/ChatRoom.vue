@@ -35,15 +35,26 @@
     <!-- 输入区域 -->
     <div class="chat-input-container">
       <div class="chat-input">
-        <textarea 
-          v-model="inputMessage" 
+        <input
+          ref="fileInput"
+          type="file"
+          @change="handleFileSelect"
+          style="display:none"
+        />
+        <button
+          @click="fileInput.click()"
+          class="upload-button"
+          title="上传文件"
+        >📎</button>
+        <textarea
+          v-model="inputMessage"
           @keydown.enter.prevent="sendMessage"
-          placeholder="请输入消息..." 
+          placeholder="请输入消息..."
           class="input-box"
           :disabled="connectionStatus === 'connecting'"
         ></textarea>
-        <button 
-          @click="sendMessage" 
+        <button
+          @click="sendMessage"
           class="send-button"
           :disabled="connectionStatus === 'connecting' || !inputMessage.trim()"
         >发送</button>
@@ -55,6 +66,7 @@
 <script setup>
 import { ref, reactive, onMounted, nextTick, watch, computed } from 'vue'
 import AiAvatarFallback from './AiAvatarFallback.vue'
+import { uploadFile } from '../api'
 
 const props = defineProps({
   messages: {
@@ -75,6 +87,8 @@ const emit = defineEmits(['send-message'])
 
 const inputMessage = ref('')
 const messagesContainer = ref(null)
+const fileInput = ref(null)
+const uploading = ref(false)
 
 // 根据AI类型选择不同头像
 const aiAvatar = computed(() => {
@@ -86,9 +100,27 @@ const aiAvatar = computed(() => {
 // 发送消息
 const sendMessage = () => {
   if (!inputMessage.value.trim()) return
-  
+
   emit('send-message', inputMessage.value)
   inputMessage.value = ''
+}
+
+// 选择文件后上传
+const handleFileSelect = async (event) => {
+  const file = event.target.files[0]
+  if (!file) return
+  uploading.value = true
+  try {
+    const res = await uploadFile(file)
+    if (res.data && res.data.success) {
+      emit('send-message', '我上传了一个文件：' + res.data.fileName + '，请帮我分析')
+    }
+  } catch (e) {
+    console.error('文件上传失败', e)
+  } finally {
+    uploading.value = false
+    if (fileInput.value) fileInput.value.value = ''
+  }
 }
 
 // 格式化时间
@@ -278,8 +310,27 @@ onMounted(() => {
   border-color: #007bff;
 }
 
+.upload-button {
+  background: none;
+  border: 1px solid #ddd;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+  transition: background-color 0.3s;
+}
+
+.upload-button:hover {
+  background-color: #e9e9eb;
+}
+
 .send-button {
-  margin-left: 12px;
+  margin-left: 0;
   background-color: #007bff;
   color: white;
   border: none;

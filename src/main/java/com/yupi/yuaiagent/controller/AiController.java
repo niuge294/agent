@@ -55,6 +55,7 @@ public class AiController {
     public SseEmitter doChatWithManus(String message, String chatId) {
         Long userId = UserContext.getUserId();
         YuManus yuManus = new YuManus(allTools, dashscopeChatModel);
+        yuManus.setUserId(userId);
 
         // 1. 自动更新会话标题（仿 LoveApp，仅第一条消息时触发）
         LambdaQueryWrapper<Conversation> wrapper = new LambdaQueryWrapper<Conversation>()

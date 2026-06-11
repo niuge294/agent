@@ -21,7 +21,7 @@ public class ToolRegistration {
         WebSearchTool webSearchTool = new WebSearchTool(searchApiKey);
         WebScrapingTool webScrapingTool = new WebScrapingTool();
         ResourceDownloadTool resourceDownloadTool = new ResourceDownloadTool();
-        TerminalOperationTool terminalOperationTool = new TerminalOperationTool();
+        // TerminalOperationTool terminalOperationTool = new TerminalOperationTool();
         PDFGenerationTool pdfGenerationTool = new PDFGenerationTool();
         TerminateTool terminateTool = new TerminateTool();
         return ToolCallbacks.from(
@@ -29,7 +29,7 @@ public class ToolRegistration {
                 webSearchTool,
                 webScrapingTool,
                 resourceDownloadTool,
-                terminalOperationTool,
+                // terminalOperationTool,
                 pdfGenerationTool,
                 terminateTool
         );
