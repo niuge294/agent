@@ -20,7 +20,7 @@ public class ToolRegistration {
         FileOperationTool fileOperationTool = new FileOperationTool();
         WebSearchTool webSearchTool = new WebSearchTool(searchApiKey);
         WebScrapingTool webScrapingTool = new WebScrapingTool();
-        ResourceDownloadTool resourceDownloadTool = new ResourceDownloadTool();
+        // ResourceDownloadTool resourceDownloadTool = new ResourceDownloadTool();
         // TerminalOperationTool terminalOperationTool = new TerminalOperationTool();
         PDFGenerationTool pdfGenerationTool = new PDFGenerationTool();
         TerminateTool terminateTool = new TerminateTool();
@@ -28,7 +28,7 @@ public class ToolRegistration {
                 fileOperationTool,
                 webSearchTool,
                 webScrapingTool,
-                resourceDownloadTool,
+                // resourceDownloadTool,
                 // terminalOperationTool,
                 pdfGenerationTool,
                 terminateTool

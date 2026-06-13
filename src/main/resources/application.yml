@@ -1,6 +1,9 @@
 spring:
   application:
     name: yu-ai-agent
+  mvc:
+    async:
+      request-timeout: 300000
   datasource:
     url: jdbc:mysql://localhost:3306/yupi?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     username: root

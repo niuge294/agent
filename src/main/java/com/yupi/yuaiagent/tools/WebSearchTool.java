@@ -55,12 +55,12 @@ public class WebSearchTool {
     /**
      * 搜索图片
      */
-    @Tool(description = "Search for images from Google Images, returns image URLs")
+    @Tool(description = "Search for images from Bing Images, returns image markdown")
     public String searchImages(@ToolParam(description = "Image search query keyword") String query) {
         Map<String, Object> paramMap = new HashMap<>();
         paramMap.put("q", query);
         paramMap.put("api_key", apiKey);
-        paramMap.put("engine", "google_images");
+        paramMap.put("engine", "bing_images");
         try {
             String response = HttpUtil.get(SEARCH_API_URL, paramMap);
             JSONObject jsonObject = JSONUtil.parseObj(response);

@@ -113,7 +113,13 @@ const loadConversations = async () => {
 }
 
 const handleNewChat = async () => {
-  // 如果已有一个没发消息的"新对话"，直接切过去，不重复创建
+  // 关闭当前 SSE 连接
+  if (eventSource) {
+    eventSource.close()
+    eventSource = null
+  }
+  // 先拉最新列表，避免用脏数据判断"新对话"是否已存在
+  await loadConversations()
   const empty = conversations.value.find(c => c.title === '新对话')
   if (empty) {
     chatId.value = empty.chatId

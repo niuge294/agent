@@ -144,6 +144,12 @@
             <version>9.1.0</version>
             <type>pom</type>
         </dependency>
+        <!-- WebP 图片解码支持 -->
+        <dependency>
+            <groupId>org.sejda.imageio</groupId>
+            <artifactId>webp-imageio</artifactId>
+            <version>0.1.6</version>
+        </dependency>
         <!-- https://mvnrepository.com/artifact/com.itextpdf/font-asian -->
         <dependency>
             <groupId>com.itextpdf</groupId>
