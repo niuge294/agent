@@ -11,7 +11,11 @@ import com.yupi.yuaiagent.service.ConversationService;
 import jakarta.annotation.Resource;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.tool.ToolCallback;
+import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.http.MediaType;
+
+import java.util.Arrays;
+import java.util.stream.Stream;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -40,6 +44,9 @@ public class AiController {
     @Resource
     private ChatHistoryRepository chatHistoryRepository;
 
+    @Resource
+    private ToolCallbackProvider toolCallbackProvider;
+
     /**
      * SSE 流式调用 AI 恋爱大师应用
      */
@@ -54,7 +61,12 @@ public class AiController {
     @GetMapping("/manus/chat")
     public SseEmitter doChatWithManus(String message, String chatId) {
         Long userId = UserContext.getUserId();
-        YuManus yuManus = new YuManus(allTools, dashscopeChatModel);
+        // 合并本地工具 + MCP 远程工具
+        ToolCallback[] mergedTools = Stream.concat(
+                Arrays.stream(allTools),
+                Arrays.stream(toolCallbackProvider.getToolCallbacks())
+        ).toArray(ToolCallback[]::new);
+        YuManus yuManus = new YuManus(mergedTools, dashscopeChatModel);
         yuManus.setUserId(userId);
 
         // 1. 自动更新会话标题（仿 LoveApp，仅第一条消息时触发）

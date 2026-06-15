@@ -32,9 +32,11 @@ public class LoveApp {
     @Resource
     private QueryRewriter queryRewriter;
 
+    //静态数组
     @Resource
     private ToolCallback[] allTools;
 
+    //动态调用
     @Resource
     private ToolCallbackProvider toolCallbackProvider;
 

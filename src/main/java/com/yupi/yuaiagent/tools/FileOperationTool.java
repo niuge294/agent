@@ -51,6 +51,8 @@ public class FileOperationTool {
      */
     @Tool(description = "Read content from a file")
     public String readFile(@ToolParam(description = "Name of a file to read") String fileName) {
+        String err = ToolParamValidator.validateFileName(fileName);
+        if (err != null) return err;
         String filePath = getUserFileDir() + "/" + fileName;
         if (!FileUtil.exist(filePath)) {
             return "文件不存在：" + fileName + "，可用文件列表：" + listFiles();
@@ -69,6 +71,10 @@ public class FileOperationTool {
     @Tool(description = "Write content to a file")
     public String writeFile(@ToolParam(description = "Name of the file to write") String fileName,
                             @ToolParam(description = "Content to write to the file") String content) {
+        String err = ToolParamValidator.validateFileName(fileName);
+        if (err != null) return err;
+        err = ToolParamValidator.validateContent(content);
+        if (err != null) return err;
         String dirPath = getUserFileDir();
         String filePath = dirPath + "/" + fileName;
         try {

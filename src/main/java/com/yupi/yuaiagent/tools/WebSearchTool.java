@@ -30,6 +30,8 @@ public class WebSearchTool {
     @Tool(description = "Search for information from Baidu Search Engine")
     public String searchWeb(
             @ToolParam(description = "Search query keyword") String query) {
+        String err = ToolParamValidator.validateSearchQuery(query);
+        if (err != null) return err;
         Map<String, Object> paramMap = new HashMap<>();
         paramMap.put("q", query);
         paramMap.put("api_key", apiKey);
@@ -57,6 +59,8 @@ public class WebSearchTool {
      */
     @Tool(description = "Search for images from Bing Images, returns image markdown")
     public String searchImages(@ToolParam(description = "Image search query keyword") String query) {
+        String err = ToolParamValidator.validateSearchQuery(query);
+        if (err != null) return err;
         Map<String, Object> paramMap = new HashMap<>();
         paramMap.put("q", query);
         paramMap.put("api_key", apiKey);

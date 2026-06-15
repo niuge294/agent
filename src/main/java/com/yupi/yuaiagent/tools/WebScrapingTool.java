@@ -25,6 +25,8 @@ public class WebScrapingTool {
     public String scrapeWebPage(
             @ToolParam(description = "URL of the web page to scrape") String url,
             @ToolParam(description = "Cookie string for authentication (optional)", required = false) String cookie) {
+        String err = ToolParamValidator.validateUrl(url);
+        if (err != null) return err;
         int retries = 0;
         Exception lastException = null;
 

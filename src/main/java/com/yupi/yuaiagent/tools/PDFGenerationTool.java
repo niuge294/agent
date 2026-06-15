@@ -40,6 +40,13 @@ public class PDFGenerationTool {
     public String generatePDF(
             @ToolParam(description = "Name of the file to save the generated PDF") String fileName,
             @ToolParam(description = "Content to be included in the PDF") String content) {
+        String err = ToolParamValidator.validateFileName(fileName);
+        if (err != null) return err;
+        err = ToolParamValidator.validateContent(content);
+        if (err != null) return err;
+        if (!fileName.toLowerCase().endsWith(".pdf")) {
+            fileName = fileName + ".pdf";
+        }
         Long userId = UserContext.getUserId();
         if (userId == null) {
             userId = 0L;
